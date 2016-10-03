@@ -89,14 +89,16 @@ def main(parms):
     _, batch_loss, batch_predictions = sess.run([optimization_step, loss, prediction], feed_dict = feed_dict)
     # if we have finished a pass through training data (an epoch)
     if (mnist.train.epochs_completed != cur_epoch):
-      [val_loss, val_accuracy] = sess.run([loss, accuracy], feed_dict = {data_p: mnist.validation.images, target_p: mnist.validation.labels})
-      print('Epoch #%d: validation loss = %f, validation_accuracy = %f' % (cur_epoch, val_loss, val_accuracy))
-#      val_accuracy = 0.0
-#      while(mnist.validation.epochs_completed == cur_epoch):
-#        batch_val_data, batch_val_targets = mnist.validation.next_batch(parms['batch_size'])
-#        val_accuracy += sum(sess.run(correct_prediction, feed_dict = {data_p: batch_val_data, target_p: batch_val_targets}))
-#      val_accuracy /= mnist.validation.num_examples
-#      print('Epoch #%d: validation_accuracy = %f' % (cur_epoch, val_accuracy))
+      if (parms['low_memory']):
+        val_accuracy = 0.0
+        while(mnist.validation.epochs_completed == cur_epoch):
+          batch_val_data, batch_val_targets = mnist.validation.next_batch(parms['batch_size'])
+          val_accuracy += sum(sess.run(correct_prediction, feed_dict = {data_p: batch_val_data, target_p: batch_val_targets}))
+        val_accuracy /= mnist.validation.num_examples
+        print('Epoch #%d: validation_accuracy = %f' % (cur_epoch, val_accuracy))
+      else:
+        [val_loss, val_accuracy] = sess.run([loss, accuracy], feed_dict = {data_p: mnist.validation.images, target_p: mnist.validation.labels})
+        print('Epoch #%d: validation loss = %f, validation_accuracy = %f' % (cur_epoch, val_loss, val_accuracy))
       if (val_accuracy >= best_val_accuracy):
         print('Found best validation accuracy, saving model')
         best_val_accuracy = val_accuracy
@@ -112,18 +114,19 @@ def main(parms):
   # load the best model
   saver.restore(sess, parms['checkpoint_path'])
   # evaluate performance on test set
-  test_accuracy = sess.run(accuracy, feed_dict = {data_p: mnist.test.images, target_p: mnist.test.labels})
-#  test_accuracy = 0.0
-#  while(not mnist.test.epochs_completed):
-#    batch_test_data, batch_test_targets = mnist.test.next_batch(parms['batch_size'])
-#    test_accuracy += sum(sess.run(correct_prediction, feed_dict = {data_p: batch_test_data, target_p: batch_test_targets}))
-#  test_accuracy /= mnist.test.num_examples
+  if (parms['low_memory']):
+    test_accuracy = 0.0
+    while(not mnist.test.epochs_completed):
+      batch_test_data, batch_test_targets = mnist.test.next_batch(parms['batch_size'])
+      test_accuracy += sum(sess.run(correct_prediction, feed_dict = {data_p: batch_test_data, target_p: batch_test_targets}))
+    test_accuracy /= mnist.test.num_examples
+  else:
+    test_accuracy = sess.run(accuracy, feed_dict = {data_p: mnist.test.images, target_p: mnist.test.labels})
   print('Test accuracy: %f' % (test_accuracy))
 
 if __name__ == '__main__':
 
-  splits = [55000, 5000, 5000]
-  # splits = [11000, 1000, 1000]
+  splits = [55000, 5000, 5000] # [n_train, n_val, n_test]
 
   parms = { 'splits' : splits,
             'n_data' : splits[0],
@@ -136,6 +139,7 @@ if __name__ == '__main__':
             'max_epochs' : 200, # 30,
             'max_lookahead' : 5,
             'batch_size' : 50,
-            'checkpoint_path' : '/tmp/model.ckpt' }
+            'checkpoint_path' : '/tmp/model.ckpt',
+            'low_memory': False }
 
   main(parms)
